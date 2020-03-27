@@ -9,6 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/montanaflynn/stats"
   log "github.com/sirupsen/logrus"
   "./mobicontrol"
 )
@@ -78,14 +79,6 @@ var (
 		Help:      "Average cellular signal strength of SOTI MobiControl devices",
 	}, []string{
     "cellular_carrier",
-    "network_connection_type",
-    "path",
-    "path_split_1",
-    "path_split_2",
-    "path_split_3",
-    "path_split_4",
-    "path_split_5",
-    "path_split_6",
 	})
 
 	prometheusHandler = promhttp.Handler()
@@ -141,6 +134,16 @@ func getPathElements(path string) []string {
   return paths
 }
 
+func convertTo64(ar []int) []float64 {
+   newar := make([]float64, len(ar))
+   var v int
+   var i int
+   for i, v = range ar {
+      newar[i] = float64(v)
+   }
+   return newar
+}
+
 func getDeviceMetrics() {
   devicesAgentOnline.Reset()
   devicesEvents.Reset()
@@ -149,6 +152,8 @@ func getDeviceMetrics() {
   start := time.Now()
 
   devices :=  mobicontrol.GetDevices()
+
+	deviceCellularSignalStrengths := make(map[string][]int)
 
   for _, device := range devices {
     paths := getPathElements(device.Path)
@@ -177,7 +182,22 @@ func getDeviceMetrics() {
     if time.Since(last_agent_disconnect_time).Seconds() < 3600 {
       devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
     }
+
+		// device cellular signal strength
+		if _, ok := deviceCellularSignalStrengths[device.CellularCarrier]; ! ok {
+			deviceCellularSignalStrengths[device.CellularCarrier] = make([]int, 0)
+		}
+		deviceCellularSignalStrengths[device.CellularCarrier] = append(deviceCellularSignalStrengths[device.CellularCarrier], device.CellularSignalStrength)
   }
+
+	for k, v := range deviceCellularSignalStrengths {
+		if k == "" {
+			continue
+		}
+		v64 := convertTo64(v)
+		median, _ := stats.Median(v64)
+		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
+	}
 
   log.Debug(fmt.Sprintf("Device metrics processed. %d devices in %d seconds", len(devices), int(time.Since(start).Seconds())))
 }
