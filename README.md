@@ -1,6 +1,6 @@
 # Soti MobiControl Prometheus exporter
 
-<img src="https://raw.githubusercontent.com/max-rocket-internet/soti-mobicontrol-exporter/master/img/mc-logo.png" height="100"><img src="https://raw.githubusercontent.com/max-rocket-internet/soti-mobicontrol-exporter/master/img/prometheus-logo.png" height="180">
+<img src="https://raw.githubusercontent.com/max-rocket-internet/soti-mobicontrol-exporter/master/img/prometheus-logo.png" height="75">   <img src="https://raw.githubusercontent.com/max-rocket-internet/soti-mobicontrol-exporter/master/img/mc-logo.svg?sanitize=true" height="75">
 
 A [Prometheus exporter](https://prometheus.io/docs/instrumenting/exporters/) for [SOTI MobiControl](https://soti.net/mobicontrol).
 
@@ -12,8 +12,8 @@ This exporter will expose the following metrics under the namespace `soti_mc` in
   - Network connection type
   - Path in full
   - Each device group
-- Device cellular signal strength, also same labels are above
-- Device events in the last 60 mins, also same labels are above:
+- Device cellular signal strength by the same labels are above
+- Device events in the last 60 mins by same labels are above:
   - Enrollment
   - Last check in
   - Last_agent connect

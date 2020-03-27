@@ -1,9 +1,10 @@
 # To do
 
-- Handle API pagination
-- Get devicesCellularSignalStrength metrics by path, path_split etc
+- Get devicesCellularSignalStrength metrics by server_name, path, path_split etc
 - Add command line flags
 - Handle and retry errors
 - Fix dockerfile
-- push docker image
-- Add chart and instruction
+- Push docker image
+- Add chart and instructions for installation
+- `go mod init` throws error
+- Add container probes

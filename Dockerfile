@@ -1,8 +1,9 @@
 FROM golang:1.14.0 as builder
 
 WORKDIR /go/src/github.com/max-rocket-internet/soti-mobicontrol-exporter
-COPY . /go/src/github.com/max-rocket-internet/soti-mobicontrol-exporter
+COPY . .
 
+RUN go get
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /go/bin/soti-mobicontrol-exporter /go/src/github.com/max-rocket-internet/soti-mobicontrol-exporter/main.go
 RUN adduser --disabled-login --no-create-home --disabled-password --system --uid 101 non-root
 
