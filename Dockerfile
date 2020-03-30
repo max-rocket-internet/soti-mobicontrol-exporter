@@ -11,5 +11,7 @@ FROM alpine:3.9.3
 RUN addgroup -S soti-mobicontrol-exporter && adduser -S -G soti-mobicontrol-exporter soti-mobicontrol-exporter
 USER soti-mobicontrol-exporter
 COPY --from=builder /go/bin/soti-mobicontrol-exporter /usr/local/bin/soti-mobicontrol-exporter
+USER 101
+ENV USER soti-mobicontrol-exporter
 
 ENTRYPOINT ["soti-mobicontrol-exporter"]
