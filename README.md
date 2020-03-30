@@ -88,5 +88,16 @@ docker pull maxrocketinternet/soti-mobicontrol-exporter
 Use the included [Helm](https://helm.sh/) chart to install easily on Kubernetes:
 
 ```shell
-helm install ./chart --set xxx=""
+helm install ./chart soti-mobicontrol-exporter --values=my-values.yaml
+```
+
+Where `my-values.yaml` looks like:
+
+```yaml
+sotiApi:
+  username: user1
+  mobicontrol_host: https://s012345.mobicontrolcloud.com
+  client_id: abcdefghijk123456789
+  client_secret: abcd/efghijk129sdfsdfsresd
+  password: password123456
 ```

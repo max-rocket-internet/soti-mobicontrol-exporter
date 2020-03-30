@@ -1,10 +1,9 @@
 # To do
 
 - Get devicesCellularSignalStrength metrics by server_name, path, path_split etc
+- Use goroutine to get all devices in parallel from API
 - Add command line flags
 - Handle and retry errors
-- Fix dockerfile
-- Push docker image
-- Add chart and instructions for installation
-- `go mod init` throws error
+- `go mod init` throws error locally
 - Add container probes
+- Add Grafana template
