@@ -75,7 +75,7 @@ var (
 	devicesCellularSignalStrength = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "soti_mc",
 		Subsystem: "devices",
-		Name:      "cellular_signal_strength_average",
+		Name:      "cellular_signal_strength_median",
 		Help:      "Average cellular signal strength of SOTI MobiControl devices",
 	}, []string{
 		"cellular_carrier",

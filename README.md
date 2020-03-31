@@ -12,7 +12,7 @@ This exporter will expose the following metrics under the namespace `soti_mc` in
   - Network connection type
   - Path in full
   - Each device group
-- Device cellular signal strength by the same labels are above
+- Device cellular signal strength median by carrier
 - Device events in the last 60 mins by same labels are above:
   - Enrollment
   - Last check in
