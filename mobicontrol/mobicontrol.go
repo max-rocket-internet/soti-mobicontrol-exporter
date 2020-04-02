@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
 )
 
 type mobiControlToken struct {
@@ -47,6 +48,22 @@ type mobiControlDevice struct {
 	IsAgentOnline           bool
 	Path                    string
 	ServerName              string
+}
+
+type mobiControlDeviceSummaryQuery struct {
+	DevicePropertyName string
+	AggregationName    string
+}
+
+type mobiControlDeviceSummaryResponse struct {
+	AggregationName string
+	OtherCount      int
+	Buckets         []mobiControlDeviceSummaryBucket
+}
+
+type mobiControlDeviceSummaryBucket struct {
+	Value string
+	Count int
 }
 
 type Config struct {
@@ -88,6 +105,9 @@ var (
 	client = retryablehttp.NewClient()
 
 	token = mobiControlToken{}
+
+	apiConcurrency = 2
+	apiPageSize = 500
 
 	conf = newConfig()
 
@@ -194,6 +214,53 @@ func getMobiData(apiPath string) ([]byte, error) {
 	return body, nil
 }
 
+func getDeviceCount(token string) int {
+	deviceCountResponse := []mobiControlDeviceSummaryResponse{}
+	apiPath := "/devices/summary"
+	x := make([]mobiControlDeviceSummaryQuery, 0)
+	x = append(x, mobiControlDeviceSummaryQuery{DevicePropertyName: "IsAgentOnline", AggregationName: "ID1_IsAgentOnline"})
+	b, err := json.Marshal(x)
+	var jsonStr = []byte(string(b))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	r, _ := http.NewRequest("POST", conf.mobicontrolHost + conf.apiBase + apiPath, bytes.NewBuffer(jsonStr))
+	r.Header.Add("Authorization", "Bearer " + token)
+	r.Header.Set("User-Agent", httpUserAgent)
+	r.Header.Set("Content-Type", "application/json")
+
+	start := time.Now()
+	resp, _ := client.Do(r)
+	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
+
+	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
+
+	defer resp.Body.Close()
+
+	body, readErr := ioutil.ReadAll(resp.Body)
+
+	if readErr != nil {
+		log.Fatal(fmt.Sprintf("Error reading data for apiPath %v: %v", apiPath, readErr))
+	}
+
+	err2 := json.Unmarshal(body, &deviceCountResponse)
+
+	if err2 != nil {
+		log.Fatal(fmt.Sprintf("Error parsing device summary: %v", err2))
+	}
+
+	totalDevices := 0
+
+	for _, i := range deviceCountResponse[0].Buckets {
+		totalDevices = totalDevices + i.Count
+	}
+
+	log.Debug(fmt.Sprintf("Devices counted: %v", totalDevices))
+
+	return totalDevices
+}
+
 func GetServers() mobiControlServerStatus {
 	servers := mobiControlServerStatus{}
 
@@ -201,6 +268,7 @@ func GetServers() mobiControlServerStatus {
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error getting server data: %v", err))
 	}
+	results := getMobiData("/servers", getApiToken())
 
 	err = json.Unmarshal(results, &servers)
 	if err != nil {
@@ -210,32 +278,43 @@ func GetServers() mobiControlServerStatus {
 	return servers
 }
 
+func getDevice(skip int, take int, token string) []mobiControlDevice {
+	devices := []mobiControlDevice{}
+	r := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, apiPageSize), token)
+	err := json.Unmarshal(r, &devices)
+
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error parsing device data: %v", err))
+	}
+
+	return devices
+}
+
 func GetDevices() []mobiControlDevice {
 	all_devices := []mobiControlDevice{}
-	skip := 0
-	count := apiPageSize
+	token := getApiToken()
 
-	for count == apiPageSize {
-		devices := []mobiControlDevice{}
+	// deviceCount := getDeviceCount(token)
+	deviceCount := 6
 
-		r, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, apiPageSize))
-		if err != nil {
-			log.Fatal(fmt.Sprintf("Error getting getting device data: %v", err))
-		}
+	ch := make(chan []mobiControlDevice, deviceCount)
 
-		skip = skip + apiPageSize
+	workers := Workers(func(a int) {
+		fmt.Println("a: ", a)
+    results := getDevice(2, 20, token)
+    ch <- results
+  })
 
-		err = json.Unmarshal(r, &devices)
-		if err != nil {
-			log.Fatal(fmt.Sprintf("Error unmarshalling device data: %v", err))
-		}
-
-		all_devices = append(all_devices, devices...)
-
-		count = len(devices)
-
-		log.Debug(fmt.Sprintf("Got %v devices", count))
+	for i := 0; i < deviceCount; i++ {
+		workers <- i
 	}
+
+	for i := 0; i < deviceCount; i++ {
+		x := <-ch
+		all_devices = append(all_devices, x...)
+	}
+
+	fmt.Println("len:", len(all_devices))
 
 	return all_devices
 }
