@@ -32,6 +32,7 @@ var (
 		Name:      "version",
 		Help:      "Version of SOTI MobiControl servers",
 	}, []string{
+		"server_name",
 		"version",
 	})
 
@@ -105,14 +106,14 @@ func getServerMetrics() {
 
 	servers := mobicontrol.GetServers()
 
-	serverVersion.WithLabelValues(servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
-
 	for _, server := range servers.DeploymentServers {
 		serverStatus.WithLabelValues(server.Name, "deployment", server.Status).Inc()
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
 	}
 
 	for _, server := range servers.ManagementServers {
 		serverStatus.WithLabelValues(server.Name, "management", server.Status).Inc()
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
 	}
 
 	log.Debug("Server metrics processed")
