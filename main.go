@@ -155,7 +155,7 @@ func getDeviceMetrics() {
 
 	start := time.Now()
 
-	devices := mobicontrol.GetDevices()
+	devices := mobicontrol.GetAllDevices()
 
 	deviceCellularSignalStrengths := make(map[string][]int)
 

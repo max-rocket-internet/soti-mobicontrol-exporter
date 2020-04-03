@@ -52,13 +52,15 @@ soti_mc_servers_version{version="14.4.0-4857"} 1
 
 This exporter uses environment variables for configuration:
 
-- `CLIENT_ID`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html)
-- `CLIENT_SECRET`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html)
-- `USERNAME`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html)
-- `PASSWORD`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html)
-- `MOBICONTROL_HOST`: The host for your MobiControl instance
-- `API_PREFIX`: prefix for accessing the SOTI MobiControl REST API, defaults to `/MobiControl/api`
-- `LOG_LEVEL`: log level, defaults to `INFO` but can be set to `DEBUG`
+- `CLIENT_ID`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html).
+- `CLIENT_SECRET`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html).
+- `USERNAME`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html).
+- `PASSWORD`: for authentication to the [SOTI REST API](https://www.soti.net/mc/help/v15.0/en/adminutility/tools/restapi.html).
+- `MOBICONTROL_HOST`: The host for your MobiControl instance.
+- `API_PREFIX`: prefix for accessing the SOTI MobiControl REST API, defaults to `/MobiControl/api`.
+- `LOG_LEVEL`: log level, defaults to `INFO` but can be set to `DEBUG`.
+- `API_CONCURRECNY`: how many requests to the API to make in parallel. Defaults to 50.
+- `API_PAGE_SIZE`: how many items to request from the API at once. Defaults to 2000.
 
 Example:
 
