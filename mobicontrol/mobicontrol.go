@@ -1,6 +1,7 @@
 package mobicontrol
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,13 +10,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
-	"math"
 )
 
 type mobiControlToken struct {
@@ -80,8 +80,8 @@ type Config struct {
 }
 
 type deviceJob struct {
-	skip int
-	take int
+	skip  int
+	take  int
 	token string
 }
 
@@ -131,6 +131,8 @@ var (
 	token = mobiControlToken{}
 
 	conf = newConfig()
+
+	log = logrus.New()
 
 	log = logrus.New()
 
@@ -208,14 +210,29 @@ func getApiToken() string {
 	return token.AccessToken
 }
 
-func getMobiData(apiPath string) ([]byte, error) {
-	req, err := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
-	if err != nil {
-		return nil, err
+func Workers(task func(int)) chan int {
+	input := make(chan int)
+
+	for i := 0; i < conf.apiConcurrency; i++ {
+		go func() {
+			for {
+				v, ok := <-input
+				if ok {
+					task(v)
+				} else {
+					return
+				}
+			}
+		}()
 	}
 
-	req.Header.Add("Authorization", "Bearer "+getApiToken())
-	req.Header.Set("User-Agent", httpUserAgent)
+	return input
+}
+
+func getMobiData(apiPath string, token string) []byte {
+	r, _ := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
+	r.Header.Add("Authorization", "Bearer "+token)
+	r.Header.Set("User-Agent", httpUserAgent)
 	start := time.Now()
 	resp, err := client.Do(req)
 	defer resp.Body.Close()
@@ -247,8 +264,8 @@ func getDeviceCount() int {
 	queryMarshalled, _ := json.Marshal(query)
 	queryData := []byte(string(queryMarshalled))
 
-	r, _ := http.NewRequest("POST", conf.mobicontrolHost + conf.apiBase + apiPath, bytes.NewBuffer(queryData))
-	r.Header.Add("Authorization", "Bearer " + token)
+	r, _ := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+apiPath, bytes.NewBuffer(queryData))
+	r.Header.Add("Authorization", "Bearer "+token)
 	r.Header.Set("User-Agent", httpUserAgent)
 	r.Header.Set("Content-Type", "application/json")
 
@@ -309,11 +326,11 @@ func getDevices(skip int, take int, token string) []mobiControlDevice {
 }
 
 func worker(id int, jobs <-chan deviceJob, results chan<- []mobiControlDevice) {
-    for j := range jobs {
-				log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-				r := getDevices(j.skip, j.take, j.token)
-        results <- r
-    }
+	for j := range jobs {
+		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
+		r := getDevices(j.skip, j.take, j.token)
+		results <- r
+	}
 }
 
 func GetAllDevices() []mobiControlDevice {
@@ -327,7 +344,7 @@ func GetAllDevices() []mobiControlDevice {
 	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
 
 	for w := 1; w <= conf.apiConcurrency; w++ {
-			go worker(w, jobs, results)
+		go worker(w, jobs, results)
 	}
 
 	skip := 0
@@ -343,8 +360,8 @@ func GetAllDevices() []mobiControlDevice {
 	close(jobs)
 
 	for a := 1; a <= numJobs; a++ {
-			r := <-results
-			all_devices = append(all_devices, r...)
+		r := <-results
+		all_devices = append(all_devices, r...)
 	}
 
 	return all_devices
