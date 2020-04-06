@@ -276,8 +276,6 @@ func getDeviceCount() int {
 		totalDevices = totalDevices + i.Count
 	}
 
-	log.Debug(fmt.Sprintf("Devices counted: %v", totalDevices))
-
 	return totalDevices
 }
 
@@ -322,13 +320,13 @@ func GetAllDevices() []mobiControlDevice {
 	all_devices := []mobiControlDevice{}
 	token := getApiToken()
 	deviceCount := getDeviceCount()
-	numJobs := int(math.Ceil(float64(deviceCount / conf.apiPageSize)))
-	const concurrency = 2
-
+	numJobs := int(math.Ceil(float64(deviceCount) / float64(conf.apiPageSize)))
 	results := make(chan []mobiControlDevice, numJobs)
 	jobs := make(chan deviceJob, numJobs)
 
-	for w := 1; w <= concurrency; w++ {
+	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
+
+	for w := 1; w <= conf.apiConcurrency; w++ {
 			go worker(w, jobs, results)
 	}
 
