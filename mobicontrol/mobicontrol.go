@@ -157,7 +157,7 @@ func getApiToken() string {
 
 	err = json.Unmarshal(body, &token)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error unmarshalling token json: %v", err))
+		log.Fatal(fmt.Sprintf("Error unmarshalling token data: %v", err))
 	}
 
 	token.CreatedAt = time.Now()
@@ -167,36 +167,44 @@ func getApiToken() string {
 	return token.AccessToken
 }
 
-func getMobiData(apiPath string) []byte {
-	r, _ := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
-	r.Header.Add("Authorization", "Bearer "+getApiToken())
-	r.Header.Set("User-Agent", httpUserAgent)
+func getMobiData(apiPath string) ([]byte, error) {
+	req, err := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Authorization", "Bearer "+getApiToken())
+	req.Header.Set("User-Agent", httpUserAgent)
 	start := time.Now()
-	resp, _ := client.Do(r)
+	resp, err := client.Do(req)
+	defer resp.Body.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
 
 	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
 
-	defer resp.Body.Close()
-
-	body, readErr := ioutil.ReadAll(resp.Body)
-
-	if readErr != nil {
-		log.Fatal(fmt.Sprintf("Error reading data for apiPath %v: %v", apiPath, readErr))
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
 	}
 
-	return body
+	return body, nil
 }
 
 func GetServers() mobiControlServerStatus {
 	servers := mobiControlServerStatus{}
 
-	results := getMobiData("/servers")
-
-	err := json.Unmarshal(results, &servers)
-
+	results, err := getMobiData("/servers")
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error parsing server data: %v", err))
+		log.Fatal(fmt.Sprintf("Error getting server data: %v", err))
+	}
+
+	err = json.Unmarshal(results, &servers)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error unmarshalling server data: %v", err))
 	}
 
 	return servers
@@ -210,14 +218,16 @@ func GetDevices() []mobiControlDevice {
 	for count == apiPageSize {
 		devices := []mobiControlDevice{}
 
-		r := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, apiPageSize))
+		r, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, apiPageSize))
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error getting getting device data: %v", err))
+		}
 
 		skip = skip + apiPageSize
 
-		err := json.Unmarshal(r, &devices)
-
+		err = json.Unmarshal(r, &devices)
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error parsing device data: %v", err))
+			log.Fatal(fmt.Sprintf("Error unmarshalling device data: %v", err))
 		}
 
 		all_devices = append(all_devices, devices...)
