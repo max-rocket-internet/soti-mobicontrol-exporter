@@ -170,21 +170,40 @@ func getDeviceMetrics() {
 		}
 
 		// device events
-		enrollment_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.EnrollmentTime)
+		enrollment_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.EnrollmentTime)
 		if time.Since(enrollment_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_check_in_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastCheckInTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_check_in_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastCheckInTime)
 		if time.Since(last_check_in_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_agent_connect_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentConnectTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_agent_connect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentConnectTime)
 		if time.Since(last_agent_connect_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_agent_disconnect_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentDisconnectTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_agent_disconnect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentDisconnectTime)
 		if time.Since(last_agent_disconnect_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+		}
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
 		}
 
 		// device cellular signal strength
@@ -198,7 +217,11 @@ func getDeviceMetrics() {
 		if k == "" {
 			continue
 		}
-		median, _ := stats.Median(convertTo64(v))
+		median, err := stats.Median(convertTo64(v))
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error calculating median: %v", err))
+			continue
+		}
 		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
 	}
 
