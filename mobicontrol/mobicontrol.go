@@ -135,24 +135,32 @@ func getApiToken() string {
 	data.Set("username", conf.username)
 	data.Set("password", conf.password)
 
-	r, _ := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+"/token", strings.NewReader(data.Encode()))
-	r.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(conf.clientId+":"+conf.clientSecret)))
-	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	r.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
-	r.Header.Set("User-Agent", httpUserAgent)
+	req, err := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+"/token", strings.NewReader(data.Encode()))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error creating token request: %v", err))
+	}
 
-	resp, _ := client.Do(r)
-
+	req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(conf.clientId+":"+conf.clientSecret)))
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
+	req.Header.Set("User-Agent", httpUserAgent)
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error in token response: %v", err))
+	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
-
-	jsonErr := json.Unmarshal(body, &token)
-	token.CreatedAt = time.Now()
-
-	if jsonErr != nil {
-		log.Fatal(fmt.Sprintf("Error getting token: %v", jsonErr))
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error reading token response body: %v", err))
 	}
+
+	err = json.Unmarshal(body, &token)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Error unmarshalling token json: %v", err))
+	}
+
+	token.CreatedAt = time.Now()
 
 	log.Debug(fmt.Sprintf("Received new API token that expires in %v seconds", token.Expires))
 

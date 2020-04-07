@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +15,8 @@ import (
 )
 
 var (
+	log = logrus.New()
+
 	serverStatus = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "soti_mc",
 		Subsystem: "servers",
@@ -87,13 +89,13 @@ var (
 )
 
 func init() {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
+	log.Formatter = new(logrus.JSONFormatter)
+	log.Out = os.Stdout
+	log.Level = logrus.InfoLevel
 
 	if value, exists := os.LookupEnv("LOG_LEVEL"); exists {
 		if value == "DEBUG" {
-			log.SetLevel(log.DebugLevel)
+			log.Level = logrus.DebugLevel
 		}
 	}
 }
@@ -196,8 +198,7 @@ func getDeviceMetrics() {
 		if k == "" {
 			continue
 		}
-		v64 := convertTo64(v)
-		median, _ := stats.Median(v64)
+		median, _ := stats.Median(convertTo64(v))
 		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
 	}
 
