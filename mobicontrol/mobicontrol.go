@@ -4,11 +4,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
-	"net/http"
 	"net/url"
 	"os"
 	"strconv"
@@ -85,11 +85,13 @@ func getEnv(params ...string) string {
 var (
 	httpUserAgent = "github/max-rocket-internet/soti-mobicontrol-exporter/1.0"
 
-	client = &http.Client{}
+	client = retryablehttp.NewClient()
 
 	token = mobiControlToken{}
 
 	conf = newConfig()
+
+	log = logrus.New()
 
 	apiPageSize = 5000
 
@@ -104,14 +106,21 @@ var (
 )
 
 func init() {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetOutput(os.Stdout)
+	client.Backoff = retryablehttp.LinearJitterBackoff
+	client.RetryWaitMin = 500 * time.Millisecond
+	client.RetryWaitMax = 3000 * time.Millisecond
+	client.RetryMax = 4
+	client.ErrorHandler = retryablehttp.PassthroughErrorHandler
+	client.Logger = nil
+	client.HTTPClient.Timeout = 30 * time.Second
 
-	if conf.logLevel == "DEBUG" {
-		log.SetLevel(log.DebugLevel)
-	} else {
-		log.SetLevel(log.InfoLevel)
+	level, err := logrus.ParseLevel(conf.logLevel)
+	if err != nil {
+		level = logrus.InfoLevel
 	}
+	log.Level = level
+	log.Formatter = new(logrus.JSONFormatter)
+	log.Out = os.Stdout
 }
 
 func getApiToken() string {
@@ -126,7 +135,7 @@ func getApiToken() string {
 	data.Set("username", conf.username)
 	data.Set("password", conf.password)
 
-	r, _ := http.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+"/token", strings.NewReader(data.Encode()))
+	r, _ := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+"/token", strings.NewReader(data.Encode()))
 	r.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(conf.clientId+":"+conf.clientSecret)))
 	r.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	r.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
@@ -151,7 +160,7 @@ func getApiToken() string {
 }
 
 func getMobiData(apiPath string) []byte {
-	r, _ := http.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
+	r, _ := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
 	r.Header.Add("Authorization", "Bearer "+getApiToken())
 	r.Header.Set("User-Agent", httpUserAgent)
 	start := time.Now()
