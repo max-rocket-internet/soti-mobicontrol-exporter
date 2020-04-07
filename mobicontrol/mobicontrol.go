@@ -15,6 +15,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -134,10 +135,6 @@ var (
 
 	log = logrus.New()
 
-	log = logrus.New()
-
-	apiPageSize = 5000
-
 	apiLatency = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "soti_mc",
 		Subsystem: "api",
@@ -210,26 +207,7 @@ func getApiToken() string {
 	return token.AccessToken
 }
 
-func Workers(task func(int)) chan int {
-	input := make(chan int)
-
-	for i := 0; i < conf.apiConcurrency; i++ {
-		go func() {
-			for {
-				v, ok := <-input
-				if ok {
-					task(v)
-				} else {
-					return
-				}
-			}
-		}()
-	}
-
-	return input
-}
-
-func getMobiData(apiPath string, token string) []byte {
+func getMobiData(apiPath string, token string) ([]byte, error) {
 	r, _ := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
 	r.Header.Add("Authorization", "Bearer "+token)
 	r.Header.Set("User-Agent", httpUserAgent)
@@ -254,9 +232,8 @@ func getMobiData(apiPath string, token string) []byte {
 
 func getDeviceCount() int {
 	token := getApiToken()
-
 	apiPath := "/devices/summary"
-
+	totalDevices := 0
 	deviceCountResponse := []mobiControlDeviceSummaryResponse{}
 
 	query := make([]mobiControlDeviceSummaryQuery, 0)
@@ -284,10 +261,9 @@ func getDeviceCount() int {
 
 	jsonErr := json.Unmarshal(body, &deviceCountResponse)
 	if jsonErr != nil {
-		log.Fatal(fmt.Sprintf("Error parsing device summary: %v", jsonErr))
+		log.Error(fmt.Sprintf("Error parsing device summary: %v", jsonErr))
+		return totalDevices
 	}
-
-	totalDevices := 0
 
 	for _, i := range deviceCountResponse[0].Buckets {
 		totalDevices = totalDevices + i.Count
@@ -310,26 +286,55 @@ func GetServers() mobiControlServerStatus {
 		log.Fatal(fmt.Sprintf("Error unmarshalling server data: %v", err))
 	}
 
+	if errorGet != nil {
+		log.Error(fmt.Sprintf("Error getting server data: %v", errorGet))
+	}
+
 	return servers
 }
 
-func getDevices(skip int, take int, token string) []mobiControlDevice {
+func getDevices(skip int, take int, token string) ([]mobiControlDevice, error) {
 	devices := []mobiControlDevice{}
-	r := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, conf.apiPageSize), token)
-	err := json.Unmarshal(r, &devices)
 
+	results, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, conf.apiPageSize), token)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Error parsing device data: %v", err))
+		return nil, err
 	}
 
-	return devices
+	err = json.Unmarshal(results, &devices)
+	if err != nil {
+		return nil, err
+	}
+
+	return devices, nil
 }
 
-func worker(id int, jobs <-chan deviceJob, results chan<- []mobiControlDevice) {
+func Workers(task func(int)) chan int {
+	input := make(chan int)
+
+	for i := 0; i < conf.apiConcurrency; i++ {
+		go func() {
+			for {
+				v, ok := <-input
+				if ok {
+					task(v)
+				} else {
+					return
+				}
+			}
+		}()
+	}
+
+	return input
+}
+
+func worker(id int, wg *sync.WaitGroup, jobs <-chan deviceJob, results chan<- []mobiControlDevice, errors chan<- error) {
 	for j := range jobs {
 		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-		r := getDevices(j.skip, j.take, j.token)
-		results <- r
+		devices, err := getDevices(j.skip, j.take, j.token)
+		results <- devices
+		errors <- err
+		wg.Done()
 	}
 }
 
@@ -340,11 +345,13 @@ func GetAllDevices() []mobiControlDevice {
 	numJobs := int(math.Ceil(float64(deviceCount) / float64(conf.apiPageSize)))
 	results := make(chan []mobiControlDevice, numJobs)
 	jobs := make(chan deviceJob, numJobs)
+	errors := make(chan error)
+	wg := sync.WaitGroup{}
 
 	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
 
-	for w := 1; w <= conf.apiConcurrency; w++ {
-		go worker(w, jobs, results)
+	for id := 1; id <= conf.apiConcurrency; id++ {
+		go worker(id, &wg, jobs, results, errors)
 	}
 
 	skip := 0
@@ -356,8 +363,16 @@ func GetAllDevices() []mobiControlDevice {
 		jobs <- e
 		skip = skip + conf.apiPageSize
 	}
-
 	close(jobs)
+	wg.Wait()
+
+
+	select {
+		case err := <-errors:
+			log.Error(fmt.Sprintf("Error getting deivces: %v", err))
+			return nil
+		default:
+	}
 
 	for a := 1; a <= numJobs; a++ {
 		r := <-results
