@@ -7,7 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +15,8 @@ import (
 )
 
 var (
+	log = logrus.New()
+
 	serverStatus = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "soti_mc",
 		Subsystem: "servers",
@@ -87,13 +89,13 @@ var (
 )
 
 func init() {
-	log.SetFormatter(&log.JSONFormatter{})
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
+	log.Formatter = new(logrus.JSONFormatter)
+	log.Out = os.Stdout
+	log.Level = logrus.InfoLevel
 
 	if value, exists := os.LookupEnv("LOG_LEVEL"); exists {
 		if value == "DEBUG" {
-			log.SetLevel(log.DebugLevel)
+			log.Level = logrus.DebugLevel
 		}
 	}
 }
@@ -108,12 +110,12 @@ func getServerMetrics() {
 
 	for _, server := range servers.DeploymentServers {
 		serverStatus.WithLabelValues(server.Name, "deployment", server.Status).Inc()
-		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
 	for _, server := range servers.ManagementServers {
 		serverStatus.WithLabelValues(server.Name, "management", server.Status).Inc()
-		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
 	log.Debug("Server metrics processed")
@@ -168,21 +170,40 @@ func getDeviceMetrics() {
 		}
 
 		// device events
-		enrollment_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.EnrollmentTime)
+		enrollment_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.EnrollmentTime)
 		if time.Since(enrollment_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_check_in_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastCheckInTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_check_in_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastCheckInTime)
 		if time.Since(last_check_in_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_agent_connect_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentConnectTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_agent_connect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentConnectTime)
 		if time.Since(last_agent_connect_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		last_agent_disconnect_time, _ := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentDisconnectTime)
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
+		}
+
+		last_agent_disconnect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentDisconnectTime)
 		if time.Since(last_agent_disconnect_time).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+		}
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			continue
 		}
 
 		// device cellular signal strength
@@ -196,8 +217,11 @@ func getDeviceMetrics() {
 		if k == "" {
 			continue
 		}
-		v64 := convertTo64(v)
-		median, _ := stats.Median(v64)
+		median, err := stats.Median(convertTo64(v))
+		if err != nil {
+			log.Fatal(fmt.Sprintf("Error calculating median: %v", err))
+			continue
+		}
 		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
 	}
 
