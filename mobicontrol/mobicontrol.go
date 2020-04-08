@@ -1,6 +1,7 @@
 package mobicontrol
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
+	"math"
 	"net/url"
 	"os"
 	"strconv"
@@ -49,6 +51,27 @@ type mobiControlDevice struct {
 	ServerName              string
 }
 
+type mobiControlDeviceResults struct {
+	Error   error
+	Devices []mobiControlDevice
+}
+
+type mobiControlDeviceSummaryQuery struct {
+	DevicePropertyName string
+	AggregationName    string
+}
+
+type mobiControlDeviceSummaryResponse struct {
+	AggregationName string
+	OtherCount      int
+	Buckets         []mobiControlDeviceSummaryBucket
+}
+
+type mobiControlDeviceSummaryBucket struct {
+	Value string
+	Count int
+}
+
 type Config struct {
 	apiBase         string
 	clientId        string
@@ -57,21 +80,31 @@ type Config struct {
 	password        string
 	mobicontrolHost string
 	logLevel        string
+	apiConcurrency  int
+	apiPageSize     int
+}
+
+type deviceJob struct {
+	skip  int
+	take  int
+	token string
 }
 
 func newConfig() *Config {
 	return &Config{
-		clientId:        getEnv("CLIENT_ID"),
-		clientSecret:    getEnv("CLIENT_SECRET"),
-		username:        getEnv("USERNAME"),
-		password:        getEnv("PASSWORD"),
-		mobicontrolHost: getEnv("MOBICONTROL_HOST"),
-		apiBase:         getEnv("API_PREFIX", "/MobiControl/api"),
-		logLevel:        getEnv("LOG_LEVEL", "INFO"),
+		clientId:        getEnvString("CLIENT_ID"),
+		clientSecret:    getEnvString("CLIENT_SECRET"),
+		username:        getEnvString("USERNAME"),
+		password:        getEnvString("PASSWORD"),
+		mobicontrolHost: getEnvString("MOBICONTROL_HOST"),
+		apiBase:         getEnvString("API_PREFIX", "/MobiControl/api"),
+		logLevel:        getEnvString("LOG_LEVEL", "INFO"),
+		apiConcurrency:  getEnvInt("API_CONCURRECNY", "50"),
+		apiPageSize:     getEnvInt("API_PAGE_SIZE", "2000"),
 	}
 }
 
-func getEnv(params ...string) string {
+func getEnvString(params ...string) string {
 	if value, exists := os.LookupEnv(params[0]); exists {
 		return value
 	} else if len(params) > 1 {
@@ -79,6 +112,19 @@ func getEnv(params ...string) string {
 	} else {
 		log.Fatal(fmt.Sprintf("Environment variable %s must be set", params[0]))
 		return ""
+	}
+}
+
+func getEnvInt(params ...string) int {
+	if value, exists := os.LookupEnv(params[0]); exists {
+		valInt, _ := strconv.Atoi(value)
+		return valInt
+	} else if len(params) > 1 {
+		valInt, _ := strconv.Atoi(params[1])
+		return valInt
+	} else {
+		log.Fatal(fmt.Sprintf("Environment variable %s must be set", params[0]))
+		return 0
 	}
 }
 
@@ -92,8 +138,6 @@ var (
 	conf = newConfig()
 
 	log = logrus.New()
-
-	apiPageSize = 5000
 
 	apiLatency = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "soti_mc",
@@ -167,13 +211,9 @@ func getApiToken() string {
 	return token.AccessToken
 }
 
-func getMobiData(apiPath string) ([]byte, error) {
+func getMobiData(apiPath string, token string) ([]byte, error) {
 	req, err := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Authorization", "Bearer "+getApiToken())
+	req.Header.Add("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", httpUserAgent)
 	start := time.Now()
 	resp, err := client.Do(req)
@@ -194,10 +234,52 @@ func getMobiData(apiPath string) ([]byte, error) {
 	return body, nil
 }
 
+func getDeviceCount() int {
+	token := getApiToken()
+	apiPath := "/devices/summary"
+	totalDevices := 0
+	deviceCountResponse := []mobiControlDeviceSummaryResponse{}
+
+	query := make([]mobiControlDeviceSummaryQuery, 0)
+	query = append(query, mobiControlDeviceSummaryQuery{DevicePropertyName: "IsAgentOnline", AggregationName: "ID1_IsAgentOnline"})
+	queryMarshalled, _ := json.Marshal(query)
+	queryData := []byte(string(queryMarshalled))
+
+	r, _ := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+apiPath, bytes.NewBuffer(queryData))
+	r.Header.Add("Authorization", "Bearer "+token)
+	r.Header.Set("User-Agent", httpUserAgent)
+	r.Header.Set("Content-Type", "application/json")
+
+	start := time.Now()
+	resp, _ := client.Do(r)
+	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
+
+	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
+
+	defer resp.Body.Close()
+
+	body, readErr := ioutil.ReadAll(resp.Body)
+	if readErr != nil {
+		log.Fatal(fmt.Sprintf("Error reading data for apiPath %v: %v", apiPath, readErr))
+	}
+
+	jsonErr := json.Unmarshal(body, &deviceCountResponse)
+	if jsonErr != nil {
+		log.Error(fmt.Sprintf("Error parsing device summary: %v", jsonErr))
+		return totalDevices
+	}
+
+	for _, i := range deviceCountResponse[0].Buckets {
+		totalDevices = totalDevices + i.Count
+	}
+
+	return totalDevices
+}
+
 func GetServers() mobiControlServerStatus {
 	servers := mobiControlServerStatus{}
 
-	results, err := getMobiData("/servers")
+	results, err := getMobiData("/servers", getApiToken())
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error getting server data: %v", err))
 	}
@@ -210,31 +292,85 @@ func GetServers() mobiControlServerStatus {
 	return servers
 }
 
-func GetDevices() []mobiControlDevice {
+func getDevices(skip int, take int, token string) ([]mobiControlDevice, error) {
+	devices := []mobiControlDevice{}
+
+	results, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, conf.apiPageSize), token)
+	if err != nil {
+		return nil, err
+	}
+
+	err = json.Unmarshal(results, &devices)
+	if err != nil {
+		return nil, err
+	}
+
+	return devices, nil
+}
+
+func Workers(task func(int)) chan int {
+	input := make(chan int)
+
+	for i := 0; i < conf.apiConcurrency; i++ {
+		go func() {
+			for {
+				v, ok := <-input
+				if ok {
+					task(v)
+				} else {
+					return
+				}
+			}
+		}()
+	}
+
+	return input
+}
+
+func worker(id int, jobs <-chan deviceJob, results chan<- mobiControlDeviceResults) {
+	for j := range jobs {
+		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
+
+		deviceResults := mobiControlDeviceResults{}
+		deviceResults.Devices, deviceResults.Error = getDevices(j.skip, j.take, j.token)
+		results <- deviceResults
+	}
+}
+
+func GetAllDevices() []mobiControlDevice {
 	all_devices := []mobiControlDevice{}
+	token := getApiToken()
+	deviceCount := getDeviceCount()
+	numJobs := int(math.Ceil(float64(deviceCount) / float64(conf.apiPageSize)))
+	results := make(chan mobiControlDeviceResults, numJobs)
+	jobs := make(chan deviceJob, numJobs)
+
+	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
+
+	for id := 1; id <= conf.apiConcurrency; id++ {
+		go worker(id, jobs, results)
+	}
+
 	skip := 0
-	count := apiPageSize
+	for j := 1; j <= numJobs; j++ {
+		e := deviceJob{}
+		e.skip = skip
+		e.take = conf.apiPageSize
+		e.token = token
+		jobs <- e
+		skip = skip + conf.apiPageSize
+	}
 
-	for count == apiPageSize {
-		devices := []mobiControlDevice{}
+	close(jobs)
 
-		r, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, apiPageSize))
-		if err != nil {
-			log.Fatal(fmt.Sprintf("Error getting getting device data: %v", err))
+	for a := 1; a <= numJobs; a++ {
+		r := <-results
+		if r.Error != nil {
+			log.Error(fmt.Sprintf("Error getting some devices: %v", r.Error))
+			return nil
+		} else {
+			all_devices = append(all_devices, r.Devices...)
 		}
-
-		skip = skip + apiPageSize
-
-		err = json.Unmarshal(r, &devices)
-		if err != nil {
-			log.Fatal(fmt.Sprintf("Error unmarshalling device data: %v", err))
-		}
-
-		all_devices = append(all_devices, devices...)
-
-		count = len(devices)
-
-		log.Debug(fmt.Sprintf("Got %v devices", count))
 	}
 
 	return all_devices
