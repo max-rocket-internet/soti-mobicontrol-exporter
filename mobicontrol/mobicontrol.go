@@ -52,7 +52,7 @@ type mobiControlDevice struct {
 }
 
 type mobiControlDeviceResults struct {
-	Error    error
+	Error   error
 	Devices []mobiControlDevice
 }
 
@@ -330,7 +330,7 @@ func Workers(task func(int)) chan int {
 func worker(id int, jobs <-chan deviceJob, results chan<- mobiControlDeviceResults) {
 	for j := range jobs {
 		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-		
+
 		deviceResults := mobiControlDeviceResults{}
 		deviceResults.Devices, deviceResults.Error = getDevices(j.skip, j.take, j.token)
 		results <- deviceResults
@@ -364,13 +364,13 @@ func GetAllDevices() []mobiControlDevice {
 	close(jobs)
 
 	for a := 1; a <= numJobs; a++ {
-			r := <-results
-			if r.Error != nil {
-				log.Error(fmt.Sprintf("Error getting some devices: %v", r.Error))
-				return nil
-			} else {
-				all_devices = append(all_devices, r.Devices...)
-			}
+		r := <-results
+		if r.Error != nil {
+			log.Error(fmt.Sprintf("Error getting some devices: %v", r.Error))
+			return nil
+		} else {
+			all_devices = append(all_devices, r.Devices...)
+		}
 	}
 
 	return all_devices
