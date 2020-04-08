@@ -5,6 +5,8 @@ sotiApi:
   username:
   password:
   mobicontrol_host:
+  apiPageSize: 2000
+  apiConcurrency: 50
 
 logLevel: INFO
 
@@ -31,6 +33,36 @@ resources: {}
   # limits:
   #   cpu: 100m
   #   memory: 128Mi
+
+podReadinessProbe:
+  httpGet:
+    path: /healthz
+    port: 9571
+  initialDelaySeconds: 5
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 2
+
+podLivenessProbe:
+  httpGet:
+    path: /healthz
+    port: 9571
+  initialDelaySeconds: 5
+  periodSeconds: 30
+  timeoutSeconds: 5
+  failureThreshold: 2
+
+podAnnotations:
+  prometheus.io_scrape: "true"
+  prometheus.io/path: "/metrics"
+  prometheus.io/port: "9571"
+
+service:
+  create: false
+  annotations:
+    prometheus.io_scrape: "true"
+    prometheus.io/path: "/metrics"
+    prometheus.io/port: "9571"
 
 nodeSelector: {}
 
