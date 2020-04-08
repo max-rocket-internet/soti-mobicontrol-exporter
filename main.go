@@ -105,7 +105,7 @@ func healthz(w http.ResponseWriter, r *http.Request) {
 
 func getServerMetrics() {
 	serverStatus.Reset()
-
+	start := time.Now()
 	servers := mobicontrol.GetServers()
 
 	for _, server := range servers.DeploymentServers {
@@ -118,7 +118,7 @@ func getServerMetrics() {
 		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
-	log.Debug("Server metrics processed")
+	log.Debug(fmt.Sprintf("Server metrics processed: %v servers in %v seconds", len(servers.DeploymentServers )+len(servers.ManagementServers), int(time.Since(start).Seconds())))
 }
 
 func getPathElements(path string) []string {
@@ -126,7 +126,7 @@ func getPathElements(path string) []string {
 	n := 0
 	for i, p := range strings.Split(path, "\\") {
 		if i >= len(paths) {
-			log.Debug("Path depth is higher than supported")
+			log.Error("Path depth is higher than supported")
 			return paths
 		}
 		if p != "" {
