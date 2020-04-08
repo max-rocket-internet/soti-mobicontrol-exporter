@@ -110,12 +110,12 @@ func getServerMetrics() {
 
 	for _, server := range servers.DeploymentServers {
 		serverStatus.WithLabelValues(server.Name, "deployment", server.Status).Inc()
-		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
 	for _, server := range servers.ManagementServers {
 		serverStatus.WithLabelValues(server.Name, "management", server.Status).Inc()
-		serverVersion.WithLabelValues(server.Name, servers.ProductVersion + "-" + servers.ProductVersionBuild).Set(1)
+		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
 	log.Debug("Server metrics processed")
