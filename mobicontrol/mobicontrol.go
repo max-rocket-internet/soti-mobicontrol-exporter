@@ -15,7 +15,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -208,9 +207,9 @@ func getApiToken() string {
 }
 
 func getMobiData(apiPath string, token string) ([]byte, error) {
-	r, _ := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
-	r.Header.Add("Authorization", "Bearer "+token)
-	r.Header.Set("User-Agent", httpUserAgent)
+	req, err := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", httpUserAgent)
 	start := time.Now()
 	resp, err := client.Do(req)
 	defer resp.Body.Close()
@@ -275,19 +274,14 @@ func getDeviceCount() int {
 func GetServers() mobiControlServerStatus {
 	servers := mobiControlServerStatus{}
 
-	results, err := getMobiData("/servers")
+	results, err := getMobiData("/servers", getApiToken())
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error getting server data: %v", err))
 	}
-	results := getMobiData("/servers", getApiToken())
 
 	err = json.Unmarshal(results, &servers)
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Error unmarshalling server data: %v", err))
-	}
-
-	if errorGet != nil {
-		log.Error(fmt.Sprintf("Error getting server data: %v", errorGet))
 	}
 
 	return servers
@@ -328,13 +322,11 @@ func Workers(task func(int)) chan int {
 	return input
 }
 
-func worker(id int, wg *sync.WaitGroup, jobs <-chan deviceJob, results chan<- []mobiControlDevice, errors chan<- error) {
+func worker(id int, jobs <-chan deviceJob, results chan<- []mobiControlDevice) {
 	for j := range jobs {
 		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-		devices, err := getDevices(j.skip, j.take, j.token)
+		devices, _ := getDevices(j.skip, j.take, j.token)
 		results <- devices
-		errors <- err
-		wg.Done()
 	}
 }
 
@@ -345,13 +337,11 @@ func GetAllDevices() []mobiControlDevice {
 	numJobs := int(math.Ceil(float64(deviceCount) / float64(conf.apiPageSize)))
 	results := make(chan []mobiControlDevice, numJobs)
 	jobs := make(chan deviceJob, numJobs)
-	errors := make(chan error)
-	wg := sync.WaitGroup{}
 
 	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
 
 	for id := 1; id <= conf.apiConcurrency; id++ {
-		go worker(id, &wg, jobs, results, errors)
+		go worker(id, jobs, results)
 	}
 
 	skip := 0
@@ -363,20 +353,12 @@ func GetAllDevices() []mobiControlDevice {
 		jobs <- e
 		skip = skip + conf.apiPageSize
 	}
+
 	close(jobs)
-	wg.Wait()
-
-
-	select {
-		case err := <-errors:
-			log.Error(fmt.Sprintf("Error getting deivces: %v", err))
-			return nil
-		default:
-	}
 
 	for a := 1; a <= numJobs; a++ {
-		r := <-results
-		all_devices = append(all_devices, r...)
+			r := <-results
+			all_devices = append(all_devices, r...)
 	}
 
 	return all_devices
