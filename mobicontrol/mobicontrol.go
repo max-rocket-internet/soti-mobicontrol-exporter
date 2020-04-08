@@ -215,7 +215,7 @@ func getApiToken() (string, error) {
 	return token.AccessToken, nil
 }
 
-func getMobiData(apiPath string, token string) ([]byte, error) {
+func getData(apiPath string, token string) ([]byte, error) {
 	req, err := retryablehttp.NewRequest("GET", conf.mobicontrolHost+conf.apiBase+apiPath, nil)
 	req.Header.Add("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", httpUserAgent)
@@ -292,7 +292,7 @@ func GetServers() (servers mobiControlServerStatus) {
 		return
 	}
 
-	results, err := getMobiData("/servers", token)
+	results, err := getData("/servers", token)
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting server data: %v", err))
 		return
@@ -308,7 +308,7 @@ func GetServers() (servers mobiControlServerStatus) {
 }
 
 func getDevices(skip int, take int, token string) (devices []mobiControlDevice, err error) {
-	results, err := getMobiData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, conf.apiPageSize), token)
+	results, err := getData(fmt.Sprintf("/devices?skip=%d&take=%d", skip, conf.apiPageSize), token)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +354,7 @@ func GetAllDevices() (all_devices []mobiControlDevice) {
 	token, err := getApiToken()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting token: %v", err))
-		return nil
+		return
 	}
 
 	deviceCount := getDeviceCount()
@@ -369,24 +369,24 @@ func GetAllDevices() (all_devices []mobiControlDevice) {
 	}
 
 	skip := 0
-	for j := 1; j <= numJobs; j++ {
-		e := deviceJob{}
-		e.skip = skip
-		e.take = conf.apiPageSize
-		e.token = token
-		jobs <- e
+	for i := 1; i <= numJobs; i++ {
+		job := deviceJob{}
+		job.skip = skip
+		job.take = conf.apiPageSize
+		job.token = token
+		jobs <- job
 		skip = skip + conf.apiPageSize
 	}
 
 	close(jobs)
 
-	for a := 1; a <= numJobs; a++ {
-		r := <-results
-		if r.Error != nil {
-			log.Error(fmt.Sprintf("Error getting some devices: %v", r.Error))
+	for i := 1; i <= numJobs; i++ {
+		jobResults := <-results
+		if jobResults.Error != nil {
+			log.Error(fmt.Sprintf("Error getting some devices: %v", jobResults.Error))
 			return nil
 		} else {
-			all_devices = append(all_devices, r.Devices...)
+			all_devices = append(all_devices, jobResults.Devices...)
 		}
 	}
 
