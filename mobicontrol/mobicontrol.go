@@ -51,6 +51,11 @@ type mobiControlDevice struct {
 	ServerName              string
 }
 
+type mobiControlDeviceResults struct {
+	Error    error
+	Devices []mobiControlDevice
+}
+
 type mobiControlDeviceSummaryQuery struct {
 	DevicePropertyName string
 	AggregationName    string
@@ -322,11 +327,13 @@ func Workers(task func(int)) chan int {
 	return input
 }
 
-func worker(id int, jobs <-chan deviceJob, results chan<- []mobiControlDevice) {
+func worker(id int, jobs <-chan deviceJob, results chan<- mobiControlDeviceResults) {
 	for j := range jobs {
 		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-		devices, _ := getDevices(j.skip, j.take, j.token)
-		results <- devices
+		
+		deviceResults := mobiControlDeviceResults{}
+		deviceResults.Devices, deviceResults.Error = getDevices(j.skip, j.take, j.token)
+		results <- deviceResults
 	}
 }
 
@@ -335,7 +342,7 @@ func GetAllDevices() []mobiControlDevice {
 	token := getApiToken()
 	deviceCount := getDeviceCount()
 	numJobs := int(math.Ceil(float64(deviceCount) / float64(conf.apiPageSize)))
-	results := make(chan []mobiControlDevice, numJobs)
+	results := make(chan mobiControlDeviceResults, numJobs)
 	jobs := make(chan deviceJob, numJobs)
 
 	log.Debug(fmt.Sprintf("Getting %v devices with %v requests", deviceCount, numJobs))
@@ -358,7 +365,12 @@ func GetAllDevices() []mobiControlDevice {
 
 	for a := 1; a <= numJobs; a++ {
 			r := <-results
-			all_devices = append(all_devices, r...)
+			if r.Error != nil {
+				log.Error(fmt.Sprintf("Error getting some devices: %v", r.Error))
+				return nil
+			} else {
+				all_devices = append(all_devices, r.Devices...)
+			}
 	}
 
 	return all_devices
