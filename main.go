@@ -175,7 +175,7 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
 			continue
 		}
 
@@ -184,7 +184,7 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
 			continue
 		}
 
@@ -193,7 +193,7 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
 			continue
 		}
 
@@ -202,7 +202,7 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error in parsing timestamp: %v", err))
+			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
 			continue
 		}
 
@@ -219,7 +219,7 @@ func getDeviceMetrics() {
 		}
 		median, err := stats.Median(convertTo64(v))
 		if err != nil {
-			log.Fatal(fmt.Sprintf("Error calculating median: %v", err))
+			log.Error(fmt.Sprintf("Error calculating median: %v", err))
 			continue
 		}
 		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
