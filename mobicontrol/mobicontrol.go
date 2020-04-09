@@ -238,73 +238,82 @@ func getData(apiPath string, token string) ([]byte, error) {
 	return body, nil
 }
 
-func getDeviceCount() (totalDevices int) {
+func getDeviceCount() int {
+	totalDevices := 0
+	apiPath := "/devices/summary"
+	deviceCountResponse := []mobiControlDeviceSummaryResponse{}
+
 	token, err := getApiToken()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting token: %v", err))
 		return 0
 	}
 
-	apiPath := "/devices/summary"
-	deviceCountResponse := []mobiControlDeviceSummaryResponse{}
-
 	query := make([]mobiControlDeviceSummaryQuery, 0)
 	query = append(query, mobiControlDeviceSummaryQuery{DevicePropertyName: "IsAgentOnline", AggregationName: "ID1_IsAgentOnline"})
 	queryMarshalled, _ := json.Marshal(query)
 	queryData := []byte(string(queryMarshalled))
+	req, err := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+apiPath, bytes.NewBuffer(queryData))
+	if err != nil {
+		log.Error(fmt.Sprintf("Error creating device summary request: %v", err))
+		return 0
+	}
 
-	r, _ := retryablehttp.NewRequest("POST", conf.mobicontrolHost+conf.apiBase+apiPath, bytes.NewBuffer(queryData))
-	r.Header.Add("Authorization", "Bearer "+token)
-	r.Header.Set("User-Agent", httpUserAgent)
-	r.Header.Set("Content-Type", "application/json")
-
+	req.Header.Add("Authorization", "Bearer "+token)
+	req.Header.Set("User-Agent", httpUserAgent)
+	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
-	resp, _ := client.Do(r)
+	resp, err := client.Do(req)
 	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
+	if err != nil {
+		log.Error(fmt.Sprintf("Error in device summary response: %v", err))
+		return 0
+	}
 
 	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
 
 	defer resp.Body.Close()
 
-	body, readErr := ioutil.ReadAll(resp.Body)
-	if readErr != nil {
-		log.Error(fmt.Sprintf("Error reading data for apiPath %v: %v", apiPath, readErr))
-		return
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Error(fmt.Sprintf("Error reading data for device summary: %v", err))
+		return 0
 	}
 
-	jsonErr := json.Unmarshal(body, &deviceCountResponse)
-	if jsonErr != nil {
-		log.Error(fmt.Sprintf("Error parsing device summary: %v", jsonErr))
-		return
+	err = json.Unmarshal(body, &deviceCountResponse)
+	if err != nil {
+		log.Error(fmt.Sprintf("Error unmarshalling device summary data: %v", err))
+		return 0
 	}
 
 	for _, i := range deviceCountResponse[0].Buckets {
 		totalDevices = totalDevices + i.Count
 	}
 
-	return
+	return totalDevices
 }
 
-func GetServers() (servers mobiControlServerStatus) {
+func GetServers() mobiControlServerStatus {
+	serverStatus := mobiControlServerStatus{}
 	token, err := getApiToken()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting token: %v", err))
-		return
+		return serverStatus
 	}
 
 	results, err := getData("/servers", token)
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting server data: %v", err))
-		return
+		return serverStatus
 	}
 
-	err = json.Unmarshal(results, &servers)
+	err = json.Unmarshal(results, &serverStatus)
 	if err != nil {
 		log.Error(fmt.Sprintf("Error unmarshalling server data: %v", err))
-		return
+		return serverStatus
 	}
 
-	return
+	return serverStatus
 }
 
 func getDevices(skip int, take int, token string) (devices []mobiControlDevice, err error) {
@@ -342,19 +351,20 @@ func Workers(task func(int)) chan int {
 
 func worker(id int, jobs <-chan deviceJob, results chan<- mobiControlDeviceResults) {
 	for j := range jobs {
-		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
-
 		deviceResults := mobiControlDeviceResults{}
+		log.Debug(fmt.Sprintf("Worker %v starting, skip %v, take %v", id, j.skip, j.take))
 		deviceResults.Devices, deviceResults.Error = getDevices(j.skip, j.take, j.token)
 		results <- deviceResults
 	}
 }
 
-func GetAllDevices() (all_devices []mobiControlDevice) {
+func GetAllDevices() []mobiControlDevice {
+	all_devices := []mobiControlDevice{}
+
 	token, err := getApiToken()
 	if err != nil {
 		log.Error(fmt.Sprintf("Error getting token: %v", err))
-		return
+		return nil
 	}
 
 	deviceCount := getDeviceCount()
@@ -370,10 +380,7 @@ func GetAllDevices() (all_devices []mobiControlDevice) {
 
 	skip := 0
 	for i := 1; i <= numJobs; i++ {
-		job := deviceJob{}
-		job.skip = skip
-		job.take = conf.apiPageSize
-		job.token = token
+		job := deviceJob{skip, conf.apiPageSize, token}
 		jobs <- job
 		skip = skip + conf.apiPageSize
 	}
@@ -390,5 +397,5 @@ func GetAllDevices() (all_devices []mobiControlDevice) {
 		}
 	}
 
-	return
+	return all_devices
 }
