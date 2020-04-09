@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/max-rocket-internet/soti-mobicontrol-exporter/mobicontrol"
 	"fmt"
+	"github.com/max-rocket-internet/soti-mobicontrol-exporter/mobicontrol"
 	"github.com/montanaflynn/stats"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
