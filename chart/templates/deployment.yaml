@@ -16,9 +16,7 @@ spec:
         app.kubernetes.io/name: {{ include "prometheus-soti-mobicontrol-exporter.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
       annotations:
-        prometheus.io_scrape: "true"
-        prometheus.io/path: "/metrics"
-        prometheus.io/port: "9571"
+{{- toYaml .Values.podAnnotations | nindent 8 }}
     spec:
     {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
@@ -54,6 +52,14 @@ spec:
               value: "{{ .Values.sotiApi.mobicontrol_host }}"
             - name: LOG_LEVEL
               value: "{{ .Values.logLevel }}"
+            - name: API_CONCURRECNY
+              value: "{{ .Values.sotiApi.apiConcurrency }}"
+            - name: API_PAGE_SIZE
+              value: "{{ .Values.sotiApi.apiPageSize }}"
+          livenessProbe:
+            {{- toYaml .Values.podLivenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.podReadinessProbe | nindent 12 }}
           ports:
             - name: prometheus
               containerPort: 9571
