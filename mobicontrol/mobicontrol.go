@@ -41,10 +41,10 @@ type mobiControlDevice struct {
 	DeviceId                string
 	CellularCarrier         string
 	CellularSignalStrength  int
-	EnrollmentTime          string
-	LastCheckInTime         string
-	LastAgentConnectTime    string
-	LastAgentDisconnectTime string
+	EnrollmentTime          time.Time
+	LastCheckInTime         time.Time
+	LastAgentConnectTime    time.Time
+	LastAgentDisconnectTime time.Time
 	NetworkConnectionType   string
 	IsAgentOnline           bool
 	Path                    string

@@ -162,48 +162,26 @@ func getDeviceMetrics() {
 	for _, device := range devices {
 		paths := getPathElements(device.Path)
 
-		// device agent online status
 		if device.IsAgentOnline {
 			devicesAgentOnline.WithLabelValues("1", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		} else {
 			devicesAgentOnline.WithLabelValues("0", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
-		// device events
-		enrollment_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.EnrollmentTime)
-		if time.Since(enrollment_time).Seconds() < 3600 {
+		if time.Since(device.EnrollmentTime).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		if err != nil {
-			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
-			continue
-		}
 
-		last_check_in_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastCheckInTime)
-		if time.Since(last_check_in_time).Seconds() < 3600 {
+		if time.Since(device.LastCheckInTime).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		if err != nil {
-			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
-			continue
-		}
 
-		last_agent_connect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentConnectTime)
-		if time.Since(last_agent_connect_time).Seconds() < 3600 {
+		if time.Since(device.LastAgentConnectTime).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
-		if err != nil {
-			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
-			continue
-		}
 
-		last_agent_disconnect_time, err := time.Parse("2006-01-02T15:04:05Z07:00", device.LastAgentDisconnectTime)
-		if time.Since(last_agent_disconnect_time).Seconds() < 3600 {
+		if time.Since(device.LastAgentDisconnectTime).Seconds() < 3600 {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
-		}
-		if err != nil {
-			log.Error(fmt.Sprintf("Error in parsing timestamp: %v", err))
-			continue
 		}
 
 		// device cellular signal strength
