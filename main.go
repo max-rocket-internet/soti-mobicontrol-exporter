@@ -184,7 +184,6 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
-		// device cellular signal strength
 		if _, ok := deviceCellularSignalStrengths[device.CellularCarrier]; !ok {
 			deviceCellularSignalStrengths[device.CellularCarrier] = make([]int, 0)
 		}
