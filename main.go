@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/max-rocket-internet/soti-mobicontrol-exporter/mobicontrol"
 	"fmt"
+	"github.com/max-rocket-internet/soti-mobicontrol-exporter/mobicontrol"
 	"github.com/montanaflynn/stats"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -76,13 +76,22 @@ var (
 		"path_split_6",
 	})
 
-	devicesCellularSignalStrength = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	devicesCellularSignalStrength = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "soti_mc",
 		Subsystem: "devices",
-		Name:      "cellular_signal_strength_median",
-		Help:      "Average cellular signal strength of SOTI MobiControl devices",
+		Name:      "cellular_signal_strength",
+		Help:      "Cellular signal strength of SOTI MobiControl devices",
 	}, []string{
+		"server_name",
 		"cellular_carrier",
+		"network_connection_type",
+		"path",
+		"path_split_1",
+		"path_split_2",
+		"path_split_3",
+		"path_split_4",
+		"path_split_5",
+		"path_split_6",
 	})
 
 	prometheusHandler = promhttp.Handler()
@@ -118,7 +127,7 @@ func getServerMetrics() {
 		serverVersion.WithLabelValues(server.Name, servers.ProductVersion+"-"+servers.ProductVersionBuild).Set(1)
 	}
 
-	log.Debug(fmt.Sprintf("Server metrics processed: %v servers in %v seconds", len(servers.DeploymentServers )+len(servers.ManagementServers), int(time.Since(start).Seconds())))
+	log.Debug(fmt.Sprintf("Server metrics processed: %v servers in %v seconds", len(servers.DeploymentServers)+len(servers.ManagementServers), int(time.Since(start).Seconds())))
 }
 
 func getPathElements(path string) []string {
@@ -157,8 +166,6 @@ func getDeviceMetrics() {
 
 	devices := mobicontrol.GetAllDevices()
 
-	deviceCellularSignalStrengths := make(map[string][]int)
-
 	for _, device := range devices {
 		paths := getPathElements(device.Path)
 
@@ -184,22 +191,7 @@ func getDeviceMetrics() {
 			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
-		if _, ok := deviceCellularSignalStrengths[device.CellularCarrier]; !ok {
-			deviceCellularSignalStrengths[device.CellularCarrier] = make([]int, 0)
-		}
-		deviceCellularSignalStrengths[device.CellularCarrier] = append(deviceCellularSignalStrengths[device.CellularCarrier], device.CellularSignalStrength)
-	}
-
-	for k, v := range deviceCellularSignalStrengths {
-		if k == "" {
-			continue
-		}
-		median, err := stats.Median(convertTo64(v))
-		if err != nil {
-			log.Error(fmt.Sprintf("Error calculating median: %v", err))
-			continue
-		}
-		devicesCellularSignalStrength.WithLabelValues(k).Set(median)
+		devicesCellularSignalStrength.WithLabelValues(device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Observe(float64(device.CellularSignalStrength))
 	}
 
 	log.Debug(fmt.Sprintf("Device metrics processed: %v devices in %v seconds", len(devices), int(time.Since(start).Seconds())))
