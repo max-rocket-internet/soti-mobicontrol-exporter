@@ -59,10 +59,11 @@ podAnnotations:
 
 service:
   create: false
-  annotations:
-    prometheus.io_scrape: "true"
-    prometheus.io/path: "/metrics"
-    prometheus.io/port: "9571"
+  # Enusre podAnnotations is set to {} before adding service.annotations
+  # annotations:
+  #   prometheus.io_scrape: "true"
+  #   prometheus.io/path: "/metrics"
+  #   prometheus.io/port: "9571"
 
 nodeSelector: {}
 
