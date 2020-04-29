@@ -139,13 +139,23 @@ var (
 
 	log = logrus.New()
 
-	apiLatency = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	apiLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Namespace: "soti_mc",
 		Subsystem: "api",
 		Name:      "latency",
 		Help:      "Latency of SOTI MobiControl API endpoints",
 	}, []string{
 		"endpoint",
+	})
+
+	apiRequests = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "soti_mc",
+		Subsystem: "api",
+		Name:      "requests",
+		Help:      "Requests made to SOTI MobiControl API",
+	}, []string{
+		"endpoint",
+		"response",
 	})
 )
 
@@ -226,7 +236,8 @@ func getData(apiPath string, token string) ([]byte, error) {
 		return nil, err
 	}
 
-	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
+	apiLatency.WithLabelValues(apiPath).Observe(time.Since(start).Seconds())
+	apiRequests.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Inc()
 
 	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
 
@@ -264,7 +275,10 @@ func getDeviceCount() int {
 	req.Header.Set("Content-Type", "application/json")
 	start := time.Now()
 	resp, err := client.Do(req)
-	apiLatency.WithLabelValues(apiPath).Set(time.Since(start).Seconds())
+
+	apiLatency.WithLabelValues(apiPath).Observe(time.Since(start).Seconds())
+	apiRequests.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Inc()
+
 	if err != nil {
 		log.Error(fmt.Sprintf("Error in device summary response: %v", err))
 		return 0
