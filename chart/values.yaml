@@ -12,7 +12,7 @@ logLevel: INFO
 
 image:
   repository: maxrocketinternet/soti-mobicontrol-exporter
-  tag: 0.3
+  tag: 0.4
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []

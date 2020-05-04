@@ -159,8 +159,6 @@ func convertTo64(ar []int) []float64 {
 func getDeviceMetrics() {
 	devicesAgentOnline.Reset()
 	devicesEvents.Reset()
-	devicesCellularSignalStrength.Reset()
-
 	start := time.Now()
 
 	devices := mobicontrol.GetAllDevices()
