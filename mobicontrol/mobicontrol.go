@@ -146,15 +146,6 @@ var (
 		Help:      "Latency of SOTI MobiControl API endpoints",
 	}, []string{
 		"endpoint",
-	})
-
-	apiRequests = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "soti_mc",
-		Subsystem: "api",
-		Name:      "requests",
-		Help:      "Requests made to SOTI MobiControl API",
-	}, []string{
-		"endpoint",
 		"response",
 	})
 )
@@ -236,8 +227,7 @@ func getData(apiPath string, token string) ([]byte, error) {
 		return nil, err
 	}
 
-	apiLatency.WithLabelValues(apiPath).Observe(time.Since(start).Seconds())
-	apiRequests.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Inc()
+	apiLatency.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
 
 	log.Debug(fmt.Sprintf("API response %v: %v", resp.StatusCode, apiPath))
 
@@ -276,8 +266,7 @@ func getDeviceCount() int {
 	start := time.Now()
 	resp, err := client.Do(req)
 
-	apiLatency.WithLabelValues(apiPath).Observe(time.Since(start).Seconds())
-	apiRequests.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Inc()
+	apiLatency.WithLabelValues(apiPath, strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
 
 	if err != nil {
 		log.Error(fmt.Sprintf("Error in device summary response: %v", err))
