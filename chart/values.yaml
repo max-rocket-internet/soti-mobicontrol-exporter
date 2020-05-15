@@ -5,14 +5,14 @@ sotiApi:
   username:
   password:
   mobicontrol_host:
-  apiPageSize: 2000
+  apiPageSize: 1000
   apiConcurrency: 50
 
 logLevel: INFO
 
 image:
   repository: maxrocketinternet/soti-mobicontrol-exporter
-  tag: 0.4
+  tag: 0.5
   pullPolicy: IfNotPresent
 
 imagePullSecrets: []
@@ -70,3 +70,5 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+pod_labels: {}
