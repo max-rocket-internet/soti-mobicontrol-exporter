@@ -190,7 +190,9 @@ func getApiToken() (string, error) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
 	req.Header.Set("User-Agent", httpUserAgent)
+	start := time.Now()
 	resp, err := client.Do(req)
+	apiLatency.WithLabelValues("/token", strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
 	if err != nil {
 		log.Error(fmt.Sprintf("Error in token response: %v", err))
 		return "", err
