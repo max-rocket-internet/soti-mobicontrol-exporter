@@ -152,9 +152,9 @@ var (
 
 func init() {
 	client.Backoff = retryablehttp.LinearJitterBackoff
-	client.RetryWaitMin = 500 * time.Millisecond
-	client.RetryWaitMax = 3000 * time.Millisecond
-	client.RetryMax = 4
+	client.RetryWaitMin = 100 * time.Millisecond
+	client.RetryWaitMax = 500 * time.Millisecond
+	client.RetryMax = 2
 	client.ErrorHandler = retryablehttp.PassthroughErrorHandler
 	client.Logger = nil
 	client.HTTPClient.Timeout = 90 * time.Second
