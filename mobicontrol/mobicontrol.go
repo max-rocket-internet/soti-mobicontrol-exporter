@@ -100,7 +100,7 @@ func newConfig() *Config {
 		apiBase:         getEnvString("API_PREFIX", "/MobiControl/api"),
 		logLevel:        getEnvString("LOG_LEVEL", "INFO"),
 		apiConcurrency:  getEnvInt("API_CONCURRECNY", "50"),
-		apiPageSize:     getEnvInt("API_PAGE_SIZE", "2000"),
+		apiPageSize:     getEnvInt("API_PAGE_SIZE", "1000"),
 	}
 }
 
@@ -157,7 +157,7 @@ func init() {
 	client.RetryMax = 4
 	client.ErrorHandler = retryablehttp.PassthroughErrorHandler
 	client.Logger = nil
-	client.HTTPClient.Timeout = 30 * time.Second
+	client.HTTPClient.Timeout = 90 * time.Second
 
 	level, err := logrus.ParseLevel(conf.logLevel)
 	if err != nil {
