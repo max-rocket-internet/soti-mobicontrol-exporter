@@ -100,7 +100,7 @@ func newConfig() *Config {
 		apiBase:         getEnvString("API_PREFIX", "/MobiControl/api"),
 		logLevel:        getEnvString("LOG_LEVEL", "INFO"),
 		apiConcurrency:  getEnvInt("API_CONCURRECNY", "50"),
-		apiPageSize:     getEnvInt("API_PAGE_SIZE", "2000"),
+		apiPageSize:     getEnvInt("API_PAGE_SIZE", "1000"),
 	}
 }
 
@@ -152,12 +152,12 @@ var (
 
 func init() {
 	client.Backoff = retryablehttp.LinearJitterBackoff
-	client.RetryWaitMin = 500 * time.Millisecond
-	client.RetryWaitMax = 3000 * time.Millisecond
-	client.RetryMax = 4
+	client.RetryWaitMin = 100 * time.Millisecond
+	client.RetryWaitMax = 500 * time.Millisecond
+	client.RetryMax = 2
 	client.ErrorHandler = retryablehttp.PassthroughErrorHandler
 	client.Logger = nil
-	client.HTTPClient.Timeout = 30 * time.Second
+	client.HTTPClient.Timeout = 90 * time.Second
 
 	level, err := logrus.ParseLevel(conf.logLevel)
 	if err != nil {
@@ -190,7 +190,9 @@ func getApiToken() (string, error) {
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Add("Content-Length", strconv.Itoa(len(data.Encode())))
 	req.Header.Set("User-Agent", httpUserAgent)
+	start := time.Now()
 	resp, err := client.Do(req)
+	apiLatency.WithLabelValues("/token", strconv.Itoa(resp.StatusCode)).Observe(time.Since(start).Seconds())
 	if err != nil {
 		log.Error(fmt.Sprintf("Error in token response: %v", err))
 		return "", err
