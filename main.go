@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/max-rocket-internet/soti-mobicontrol-exporter/mobicontrol"
 	"github.com/prometheus/client_golang/prometheus"
@@ -207,6 +208,15 @@ func sotiMcHandler() http.HandlerFunc {
 }
 
 func main() {
+	debugMode := flag.Bool("debug", false, "Will run once and exit")
+	flag.Parse()
+
+	if *debugMode {
+		getServerMetrics()
+		getDeviceMetrics()
+		os.Exit(0)
+	}
+
 	log.Info("soti-mobicontrol-exporter starting")
 	http.HandleFunc("/healthz", healthz)
 	http.HandleFunc("/metrics", sotiMcHandler())

@@ -65,7 +65,7 @@ This exporter uses environment variables for configuration:
 Example:
 
 ```shell
-go build soti-mobicontrol-exporter.go
+go build .
 
 export CLIENT_ID="abcdefghijk123456789"
 export CLIENT_SECRET="abcd/efghijk129sdfsdfsresd"

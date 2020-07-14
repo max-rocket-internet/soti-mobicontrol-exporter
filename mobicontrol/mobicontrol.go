@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/prometheus/client_golang/prometheus"
@@ -212,6 +213,10 @@ func getApiToken() (string, error) {
 	}
 
 	token.CreatedAt = time.Now()
+
+	if token.Expires == 0 {
+		return "", errors.New("Token is invalid")
+	}
 
 	log.Debug(fmt.Sprintf("Received new API token that expires in %v seconds", token.Expires))
 
