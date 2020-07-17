@@ -46,7 +46,7 @@ type mobiControlDevice struct {
 	LastCheckInTime         time.Time
 	LastAgentConnectTime    time.Time
 	LastAgentDisconnectTime time.Time
-	NetworkConnectionType   string
+	NetworkConnectionType   interface{}
 	IsAgentOnline           bool
 	Path                    string
 	ServerName              string
