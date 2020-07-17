@@ -167,29 +167,31 @@ func getDeviceMetrics() {
 	for _, device := range devices {
 		paths := getPathElements(device.Path)
 
+		networkConnectionType := fmt.Sprintf("%v", device.NetworkConnectionType)
+
 		if device.IsAgentOnline {
-			devicesAgentOnline.WithLabelValues("1", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesAgentOnline.WithLabelValues("1", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		} else {
-			devicesAgentOnline.WithLabelValues("0", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesAgentOnline.WithLabelValues("0", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
 		if time.Since(device.EnrollmentTime).Seconds() < 3600 {
-			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesEvents.WithLabelValues("enrollment_time", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
 		if time.Since(device.LastCheckInTime).Seconds() < 3600 {
-			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesEvents.WithLabelValues("last_check_in_time", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
 		if time.Since(device.LastAgentConnectTime).Seconds() < 3600 {
-			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesEvents.WithLabelValues("last_agent_connect_time", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
 		if time.Since(device.LastAgentDisconnectTime).Seconds() < 3600 {
-			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
+			devicesEvents.WithLabelValues("last_agent_disconnect_time", device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Inc()
 		}
 
-		devicesCellularSignalStrength.WithLabelValues(device.ServerName, device.CellularCarrier, device.NetworkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Observe(float64(device.CellularSignalStrength))
+		devicesCellularSignalStrength.WithLabelValues(device.ServerName, device.CellularCarrier, networkConnectionType, device.Path, paths[0], paths[1], paths[2], paths[3], paths[4], paths[5]).Observe(float64(device.CellularSignalStrength))
 	}
 
 	log.Debug(fmt.Sprintf("Device metrics processed: %v devices in %v seconds", len(devices), int(time.Since(start).Seconds())))
